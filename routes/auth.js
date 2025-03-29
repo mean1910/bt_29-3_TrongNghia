@@ -7,20 +7,20 @@ let constants = require('../utils/constants')
 let { check_authentication } = require('../utils/check_auth')
 let crypto = require('crypto')
 let mailer = require('../utils/mailer')
-let {SignUpValidator,LoginValidator,validate} = require('../utils/validator')
+let userValidationRules = require('../utils/validators')
 
+router.post('/signup', userValidationRules.createUser, async function (req, res, next) {
+    try {
+        let newUser = await userController.CreateAnUser(
+            req.body.username, req.body.password, req.body.email, 'user'
+        )
+        CreateSuccessResponse(res, 200, newUser)
+    } catch (error) {
+        next(error)
+    }
+});
 
-router.post('/signup',SignUpValidator,validate, async function (req, res, next) {
-        try {
-            let newUser = await userController.CreateAnUser(
-                req.body.username, req.body.password, req.body.email, 'user'
-            )
-            CreateSuccessResponse(res, 200, newUser)
-        } catch (error) {
-            next(error)
-        }
-    });
-router.post('/login',LoginValidator,validate, async function (req, res, next) {
+router.post('/login', userValidationRules.login, async function (req, res, next) {
     try {
         let user_id = await userController.CheckLogin(
             req.body.username, req.body.password
@@ -34,20 +34,19 @@ router.post('/login',LoginValidator,validate, async function (req, res, next) {
         next(error)
     }
 });
+
 router.get('/me', check_authentication, function (req, res, next) {
     CreateSuccessResponse(res, 200, req.user)
 })
-router.post('/change_password', check_authentication,
-    function (req, res, next) {
-        try {
-            let oldpassword = req.body.oldpassword;
-            let newpassword = req.body.newpassword;
-            let result = userController.Change_Password(req.user, oldpassword, newpassword)
-            CreateSuccessResponse(res, 200, result)
-        } catch (error) {
-            next(error)
-        }
-    })
+
+router.post('/change_password', check_authentication, userValidationRules.changePassword, async function (req, res, next) {
+    try {
+        await userController.Change_Password(req.user, req.body.oldPassword, req.body.newPassword)
+        CreateSuccessResponse(res, 200, { message: 'Đổi mật khẩu thành công' })
+    } catch (error) {
+        next(error)
+    }
+})
 
 router.post('/forgotpassword', async function (req, res, next) {
     try {
@@ -63,16 +62,16 @@ router.post('/forgotpassword', async function (req, res, next) {
         next(error)
     }
 })
-router.post('/resetpassword/:token', async function (req, res, next) {
+
+router.post('/resetpassword/:token', userValidationRules.changePassword, async function (req, res, next) {
     try {
         let token = req.params.token;
-        let password = req.body.password;
         let user = await userController.GetUserByToken(token);
-        user.password = password;
+        user.password = req.body.newPassword;
         user.resetPasswordToken = null;
         user.resetPasswordTokenExp = null;
         await user.save();
-        CreateSuccessResponse(res, 200, user)
+        CreateSuccessResponse(res, 200, { message: 'Đặt lại mật khẩu thành công' })
     } catch (error) {
         next(error)
     }
